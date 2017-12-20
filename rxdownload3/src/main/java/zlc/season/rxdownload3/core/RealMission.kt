@@ -1,7 +1,7 @@
 package zlc.season.rxdownload3.core
 
 import android.app.NotificationManager
-import android.content.Context
+import android.content.Context.NOTIFICATION_SERVICE
 import io.reactivex.Flowable
 import io.reactivex.Maybe
 import io.reactivex.disposables.Disposable
@@ -17,55 +17,64 @@ import zlc.season.rxdownload3.http.HttpCore
 import zlc.season.rxdownload3.notification.NotificationFactory
 import java.io.File
 import java.util.concurrent.Semaphore
-import java.util.concurrent.TimeUnit.MILLISECONDS
+import java.util.concurrent.TimeUnit.SECONDS
 
 
-class RealMission(val actual: Mission, val semaphore: Semaphore) {
+class RealMission(val actual: Mission, val semaphore: Semaphore, initFlag: Boolean = true) {
     var totalSize = 0L
     var status: Status = Normal(Status())
+
+    private var semaphoreFlag = false
 
     private val processor = BehaviorProcessor.create<Status>().toSerialized()
 
     private var disposable: Disposable? = null
     private var downloadType: DownloadType? = null
 
-    private lateinit var initMaybe: Maybe<Any>
     private lateinit var downloadFlowable: Flowable<Status>
 
     private val enableNotification = DownloadConfig.enableNotification
+    private val notificationPeriod = DownloadConfig.notificationPeriod
     private lateinit var notificationManager: NotificationManager
     private lateinit var notificationFactory: NotificationFactory
 
     private val enableDb = DownloadConfig.enableDb
     private lateinit var dbActor: DbActor
 
+    private val autoStart = DownloadConfig.autoStart
+
     private val extensions = mutableListOf<Extension>()
 
     init {
-        init()
+        if (initFlag) {
+            init()
+
+        }
     }
 
     private fun init() {
-        initMaybe = Maybe.create<Any> {
+        Maybe.create<Any> {
             loadConfig()
             createFlowable()
             initMission()
             initExtension()
             initStatus()
+            initNotification()
 
             it.onSuccess(ANY)
-        }.subscribeOn(newThread())
-
-        initMaybe.doOnError {
+        }.subscribeOn(newThread()).doOnError {
             loge("init error!", it)
         }.subscribe {
             emitStatus(status)
+            if (autoStart) {
+                realStart()
+            }
         }
     }
 
     private fun loadConfig() {
         if (enableNotification) {
-            notificationManager = DownloadConfig.context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager = DownloadConfig.context!!.getSystemService(NOTIFICATION_SERVICE) as NotificationManager
             notificationFactory = DownloadConfig.notificationFactory
         }
 
@@ -78,8 +87,6 @@ class RealMission(val actual: Mission, val semaphore: Semaphore) {
         if (enableDb) {
             if (dbActor.isExists(this)) {
                 dbActor.read(this)
-            } else {
-                dbActor.create(this)
             }
         }
     }
@@ -92,25 +99,55 @@ class RealMission(val actual: Mission, val semaphore: Semaphore) {
 
     private fun initStatus() {
         downloadType = generateType()
-        downloadType?.initStatus()
+        if (!enableDb) {
+            downloadType?.initStatus()
+        }
     }
+
+    private fun initNotification() {
+        processor.sample(notificationPeriod, SECONDS, true).subscribe {
+            if (enableNotification) {
+                val notification = notificationFactory.build(DownloadConfig.context!!, this, it)
+                if (notification != null) {
+                    notificationManager.notify(hashCode(), notification)
+                }
+            }
+        }
+    }
+
 
     private fun createFlowable() {
         downloadFlowable = Flowable.just(ANY)
                 .subscribeOn(io())
                 .doOnSubscribe {
                     emitStatusWithNotification(Waiting(status))
+                    semaphoreFlag = false
                     semaphore.acquire()
+                    semaphoreFlag = true
                 }
+                .subscribeOn(newThread())
                 .flatMap { checkAndDownload() }
-                .doOnError { emitStatusWithNotification(Failed(status, it)) }
-                .doOnComplete { emitStatusWithNotification(Succeed(status)) }
-                .doOnCancel { emitStatusWithNotification(Suspend(status)) }
+                .doOnError {
+                    loge("Mission error! ${it.message}", it)
+                    emitStatusWithNotification(Failed(status, it))
+                }
+                .doOnComplete {
+                    logd("Mission complete!")
+                    emitStatusWithNotification(Succeed(status))
+                }
+                .doOnCancel {
+                    logd("Mission cancel!")
+                    emitStatusWithNotification(Suspend(status))
+                }
                 .doFinally {
+                    logd("Mission finally!")
                     disposable = null
-                    semaphore.release()
+                    if (semaphoreFlag) {
+                        semaphore.release()
+                    }
                 }
     }
+
 
     fun findExtension(extension: Class<out Extension>): Extension {
         return extensions.first { extension.isInstance(it) }
@@ -122,27 +159,48 @@ class RealMission(val actual: Mission, val semaphore: Semaphore) {
 
     fun start(): Maybe<Any> {
         return Maybe.create<Any> {
-            if (disposable == null) {
-                disposable = downloadFlowable.subscribe(this::emitStatusWithNotification)
-            }
+            realStart()
             it.onSuccess(ANY)
         }.subscribeOn(newThread())
+    }
+
+    private fun realStart() {
+        if (enableDb) {
+            if (!dbActor.isExists(this)) {
+                dbActor.create(this)
+            }
+        }
+
+        if (disposable == null) {
+            disposable = downloadFlowable.subscribe(this::emitStatusWithNotification)
+        }
     }
 
     fun stop(): Maybe<Any> {
         return Maybe.create<Any> {
-            dispose(disposable)
-            disposable = null
-
+            realStop()
             it.onSuccess(ANY)
         }.subscribeOn(newThread())
     }
 
-    fun delete(): Maybe<Any> {
+    internal fun realStop() {
+        dispose(disposable)
+        disposable = null
+    }
+
+    fun delete(deleteFile: Boolean): Maybe<Any> {
         return Maybe.create<Any> {
+            //stop first.
+            realStop()
+
+            if (deleteFile) {
+                downloadType?.delete()
+            }
+
             if (enableDb) {
                 dbActor.delete(this)
             }
+            emitStatusWithNotification(Deleted(Status()))
             it.onSuccess(ANY)
         }.subscribeOn(newThread())
     }
@@ -177,32 +235,14 @@ class RealMission(val actual: Mission, val semaphore: Semaphore) {
 
     fun emitStatusWithNotification(status: Status) {
         emitStatus(status)
-        notifyNotification()
     }
 
     fun emitStatus(status: Status) {
         this.status = status
         processor.onNext(status)
         if (enableDb) {
-            dbActor.update(this)
+            dbActor.updateStatus(this)
         }
-    }
-
-    private fun notifyNotification() {
-        if (enableNotification) {
-            delayNotify()
-        }
-    }
-
-    private fun delayNotify() {
-        //Delay 500 milliseconds to avoid notification not update!!
-        Maybe.just(ANY)
-                .delaySubscription(500, MILLISECONDS)
-                .subscribeOn(newThread())
-                .subscribe {
-                    notificationManager.notify(hashCode(),
-                            notificationFactory.build(DownloadConfig.context, this, status))
-                }
     }
 
     private fun generateType(): DownloadType? {

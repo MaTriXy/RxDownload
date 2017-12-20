@@ -36,7 +36,12 @@ class DownloadService : Service() {
     }
 
     inner class DownloadBinder : Binder() {
-        fun create(statusCallback: StatusCallback, mission: Mission) {
+        fun isExists(mission: Mission, boolCallback: BoolCallback, errorCb: ErrorCallback) {
+            missionBox.isExists(mission)
+                    .subscribe(boolCallback::apply, errorCb::apply)
+        }
+
+        fun create(mission: Mission, statusCallback: StatusCallback) {
             missionBox.create(mission).subscribe(statusCallback::apply)
         }
 
@@ -48,8 +53,12 @@ class DownloadService : Service() {
             missionBox.stop(mission).subscribe(successCb::apply, errorCb::apply)
         }
 
-        fun delete(mission: Mission, successCb: SuccessCallback, errorCb: ErrorCallback) {
-            missionBox.delete(mission).subscribe(successCb::apply, errorCb::apply)
+        fun delete(mission: Mission, deleteFile: Boolean, successCb: SuccessCallback, errorCb: ErrorCallback) {
+            missionBox.delete(mission, deleteFile).subscribe(successCb::apply, errorCb::apply)
+        }
+
+        fun createAll(missions: List<Mission>, successCb: SuccessCallback, errorCb: ErrorCallback) {
+            missionBox.createAll(missions).subscribe(successCb::apply, errorCb::apply)
         }
 
         fun startAll(successCb: SuccessCallback, errorCb: ErrorCallback) {
@@ -60,17 +69,39 @@ class DownloadService : Service() {
             missionBox.stopAll().subscribe(successCb::apply, errorCb::apply)
         }
 
+        fun deleteAll(deleteFile: Boolean, successCallback: SuccessCallback, errorCallback: ErrorCallback) {
+            missionBox.deleteAll(deleteFile).subscribe(successCallback::apply, errorCallback::apply)
+        }
+
         fun file(mission: Mission, fileCallback: FileCallback, errorCb: ErrorCallback) {
             missionBox.file(mission).subscribe(fileCallback::apply, errorCb::apply)
         }
 
         fun extension(mission: Mission, type: Class<out Extension>,
-                      extensionCallback: ExtensionCallback, errorCb: ErrorCallback) {
+                      successCallback: SuccessCallback, errorCb: ErrorCallback) {
             missionBox.extension(mission, type)
-                    .subscribe(extensionCallback::apply, errorCb::apply)
+                    .subscribe(successCallback::apply, errorCb::apply)
+        }
+
+        fun clear(mission: Mission, successCb: SuccessCallback, errorCb: ErrorCallback) {
+            missionBox.clear(mission)
+                    .subscribe(successCb::apply, errorCb::apply)
+        }
+
+        fun clearAll(successCb: SuccessCallback, errorCb: ErrorCallback) {
+            missionBox.clearAll()
+                    .subscribe(successCb::apply, errorCb::apply)
+        }
+
+        fun update(newMission: Mission, successCb: SuccessCallback, errorCb: ErrorCallback) {
+            missionBox.update(newMission)
+                    .subscribe(successCb::apply, errorCb::apply)
         }
     }
 
+    interface BoolCallback {
+        fun apply(value: Boolean)
+    }
 
     interface StatusCallback {
         fun apply(status: Status)
@@ -78,10 +109,6 @@ class DownloadService : Service() {
 
     interface FileCallback {
         fun apply(file: File)
-    }
-
-    interface ExtensionCallback {
-        fun apply(any: Any)
     }
 
     interface SuccessCallback {

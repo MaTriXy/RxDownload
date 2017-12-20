@@ -17,6 +17,7 @@ import zlc.season.rxdownload.kotlin_demo.databinding.ViewHolderAppItemBinding
 import zlc.season.rxdownload3.RxDownload
 import zlc.season.rxdownload3.core.*
 import zlc.season.rxdownload3.extension.ApkInstallExtension
+import zlc.season.rxdownload3.extension.ApkOpenExtension
 import zlc.season.rxdownload3.helper.dispose
 
 
@@ -49,6 +50,12 @@ class AppListActivity : AppCompatActivity() {
         val introduces = resources.getStringArray(R.array.introduce)
         (0 until images.size).mapTo(data) { CustomMission(urls[it], introduces[it], images[it]) }
         adapter.addData(data)
+
+        createAllMissionOnStart(data)
+    }
+
+    private fun createAllMissionOnStart(data: MutableList<CustomMission>) {
+        RxDownload.createAll(data).subscribe()
     }
 
 
@@ -101,6 +108,7 @@ class AppListActivity : AppCompatActivity() {
                     is Normal -> start()
                     is Suspend -> start()
                     is Failed -> start()
+                    is Deleted -> start()
                     is Downloading -> stop()
                     is Succeed -> install()
                     is ApkInstallExtension.Installed -> open()
@@ -121,7 +129,7 @@ class AppListActivity : AppCompatActivity() {
         }
 
         private fun open() {
-            //TODO: open app
+            RxDownload.extension(customMission!!, ApkOpenExtension::class.java).subscribe()
         }
 
         fun setData(customMission: CustomMission) {
@@ -155,6 +163,7 @@ class AppListActivity : AppCompatActivity() {
                 is Succeed -> "安装"
                 is ApkInstallExtension.Installing -> "安装中"
                 is ApkInstallExtension.Installed -> "打开"
+                is Deleted -> "开始"
                 else -> ""
             }
             itemBinding.action.text = text

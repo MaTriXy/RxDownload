@@ -2,6 +2,7 @@ package zlc.season.rxdownload3.core
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.os.Build
 import android.os.Environment.DIRECTORY_DOWNLOADS
 import android.os.Environment.getExternalStoragePublicDirectory
 import zlc.season.rxdownload3.database.DbActor
@@ -27,8 +28,11 @@ object DownloadConfig {
 
     internal var defaultSavePath = getExternalStoragePublicDirectory(DIRECTORY_DOWNLOADS).path
 
-    lateinit var context: Context
+    var context: Context? = null
+
     internal var fps = 30
+
+    internal var autoStart = false
 
     internal var enableDb = false
     internal lateinit var dbActor: DbActor
@@ -36,7 +40,7 @@ object DownloadConfig {
     internal var missionBox: MissionBox = LocalMissionBox()
 
     internal var enableNotification = false
-
+    internal var notificationPeriod = 2L  //2s update once
     internal lateinit var notificationFactory: NotificationFactory
 
     internal var okHttpClientFactory: OkHttpClientFactory = OkHttpClientFactoryImpl()
@@ -53,11 +57,18 @@ object DownloadConfig {
         this.maxRange = builder.maxRange
         this.defaultSavePath = builder.defaultSavePath
 
+        this.autoStart = builder.autoStart
+
         this.enableDb = builder.enableDb
         this.dbActor = builder.dbActor
 
+        if (enableDb) {
+            dbActor.init()
+        }
+
         this.enableNotification = builder.enableNotification
         this.notificationFactory = builder.notificationFactory
+        this.notificationPeriod = builder.notificationPeriod
 
         this.okHttpClientFactory = builder.okHttpClientFactory
 
@@ -77,7 +88,12 @@ object DownloadConfig {
 
         internal var debug = true
 
+        internal var autoStart = false
+
         internal var fps = 30
+
+        internal var notificationPeriod = 2L  //2s update once
+
         internal var defaultSavePath = getExternalStoragePublicDirectory(DIRECTORY_DOWNLOADS).path
 
         internal var enableDb = false
@@ -120,6 +136,16 @@ object DownloadConfig {
          */
         fun setFps(fps: Int): Builder {
             this.fps = fps
+            return this
+        }
+
+        fun setNotificationPeriod(period: Long): Builder {
+            this.notificationPeriod = period
+            return this
+        }
+
+        fun enableAutoStart(enable: Boolean): Builder {
+            this.autoStart = enable
             return this
         }
 

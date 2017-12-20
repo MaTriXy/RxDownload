@@ -16,7 +16,9 @@ import zlc.season.rxdownload.kotlin_demo.databinding.ViewHolderDownloadItemBindi
 import zlc.season.rxdownload3.RxDownload
 import zlc.season.rxdownload3.core.*
 import zlc.season.rxdownload3.extension.ApkInstallExtension
+import zlc.season.rxdownload3.extension.ApkOpenExtension
 import zlc.season.rxdownload3.helper.dispose
+import zlc.season.rxdownload3.helper.loge
 
 
 class DownloadListActivity : AppCompatActivity() {
@@ -31,19 +33,39 @@ class DownloadListActivity : AppCompatActivity() {
         mainBinding.recyclerView.layoutManager = LinearLayoutManager(this)
         mainBinding.recyclerView.adapter = adapter
 
+        mainBinding.startAll.setOnClickListener {
+            RxDownload.startAll().subscribe()
+        }
+
+        mainBinding.stopAll.setOnClickListener {
+            RxDownload.stopAll().subscribe()
+        }
+
+        mainBinding.deleteAll.setOnClickListener {
+            RxDownload.deleteAll().subscribe {
+                loadData()
+            }
+        }
+
+        loadData()
+    }
+
+    private fun loadData() {
+        RxDownload.getAllMission()
+                .observeOn(mainThread())
+                .subscribe {
+                    adapter.addData(it)
+                }
     }
 
 
     class Adapter : RecyclerView.Adapter<ViewHolder>() {
         val data = mutableListOf<Mission>()
 
-        init {
-            RxDownload.getAllMission()
-                    .observeOn(mainThread())
-                    .subscribe {
-                        data.addAll(it)
-                        notifyDataSetChanged()
-                    }
+        fun addData(data: List<Mission>) {
+            this.data.clear()
+            this.data.addAll(data)
+            notifyDataSetChanged()
         }
 
         override fun onCreateViewHolder(parent: ViewGroup?, viewType: Int): ViewHolder {
@@ -75,8 +97,8 @@ class DownloadListActivity : AppCompatActivity() {
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         private var mission: Mission? = null
-        var disposable: Disposable? = null
-        var currentStatus: Status? = null
+        private var disposable: Disposable? = null
+        private var currentStatus: Status? = null
 
         private val itemBinding: ViewHolderDownloadItemBinding = DataBindingUtil.bind(itemView)
 
@@ -94,7 +116,7 @@ class DownloadListActivity : AppCompatActivity() {
         }
 
         private fun start() {
-            RxDownload.start(mission!!.url).subscribe()
+            RxDownload.start(mission!!.url).subscribe({}, { println(it) })
         }
 
         private fun stop() {
@@ -106,7 +128,7 @@ class DownloadListActivity : AppCompatActivity() {
         }
 
         private fun open() {
-            //TODO: open app
+            RxDownload.extension(mission!!.url, ApkOpenExtension::class.java).subscribe()
         }
 
         fun setData(mission: Mission) {
@@ -120,6 +142,9 @@ class DownloadListActivity : AppCompatActivity() {
             disposable = RxDownload.create(mission!!.url)
                     .observeOn(mainThread())
                     .subscribe {
+                        if (currentStatus is Failed) {
+                            loge("Failed", (currentStatus as Failed).throwable)
+                        }
                         currentStatus = it
                         setProgress(it)
                         setActionText(it)

@@ -25,6 +25,7 @@ import io.reactivex.functions.Consumer;
 import zlc.season.rxdownload.java_demo.databinding.ActivityAppListBinding;
 import zlc.season.rxdownload.java_demo.databinding.ViewHolderAppItemBinding;
 import zlc.season.rxdownload3.RxDownload;
+import zlc.season.rxdownload3.core.Deleted;
 import zlc.season.rxdownload3.core.Downloading;
 import zlc.season.rxdownload3.core.Failed;
 import zlc.season.rxdownload3.core.Normal;
@@ -33,6 +34,7 @@ import zlc.season.rxdownload3.core.Succeed;
 import zlc.season.rxdownload3.core.Suspend;
 import zlc.season.rxdownload3.core.Waiting;
 import zlc.season.rxdownload3.extension.ApkInstallExtension;
+import zlc.season.rxdownload3.extension.ApkOpenExtension;
 import zlc.season.rxdownload3.helper.UtilsKt;
 
 public class AppListActivity extends AppCompatActivity {
@@ -69,6 +71,12 @@ public class AppListActivity extends AppCompatActivity {
             data.add(new CustomMission(urls[i], introduces[i], images[i]));
         }
         adapter.addData(data);
+
+        createAllMissionOnStart(data);
+    }
+
+    private void createAllMissionOnStart(List<CustomMission> data) {
+        RxDownload.INSTANCE.createAll(data).subscribe();
     }
 
     static class Adapter extends RecyclerView.Adapter<ViewHolder> {
@@ -142,6 +150,8 @@ public class AppListActivity extends AppCompatActivity {
                 install();
             } else if (currentStatus instanceof ApkInstallExtension.Installed) {
                 open();
+            } else if (currentStatus instanceof Deleted) {
+                start();
             }
         }
 
@@ -182,6 +192,8 @@ public class AppListActivity extends AppCompatActivity {
                 text = "安装中";
             } else if (status instanceof ApkInstallExtension.Installed) {
                 text = "打开";
+            } else if (status instanceof Deleted) {
+                text = "开始";
             }
             binding.action.setText(text);
         }
@@ -203,7 +215,7 @@ public class AppListActivity extends AppCompatActivity {
         }
 
         private void open() {
-            //open app
+            RxDownload.INSTANCE.extension(customMission, ApkOpenExtension.class).subscribe();
         }
     }
 }

@@ -6,6 +6,9 @@ import zlc.season.rxdownload3.core.RealMission
 
 
 interface DbActor {
+
+    fun init()
+
     fun isExists(mission: RealMission): Boolean
 
     fun create(mission: RealMission)
@@ -13,6 +16,8 @@ interface DbActor {
     fun read(mission: RealMission)
 
     fun update(mission: RealMission)
+
+    fun updateStatus(mission: RealMission)
 
     fun delete(mission: RealMission)
 

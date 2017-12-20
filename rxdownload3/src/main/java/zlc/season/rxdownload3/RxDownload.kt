@@ -12,12 +12,24 @@ import java.io.File
 object RxDownload {
     private val downloadCore = DownloadCore()
 
+    fun isExists(url: String): Maybe<Boolean> {
+        return isExists(Mission(url))
+    }
+
+    fun isExists(mission: Mission): Maybe<Boolean> {
+        return downloadCore.isExists(mission)
+    }
+
     fun create(url: String): Flowable<Status> {
         return create(Mission(url))
     }
 
     fun create(mission: Mission): Flowable<Status> {
         return downloadCore.create(mission)
+    }
+
+    fun update(newMission: Mission): Maybe<Any> {
+        return downloadCore.update(newMission)
     }
 
     fun start(url: String): Maybe<Any> {
@@ -36,24 +48,44 @@ object RxDownload {
         return downloadCore.stop(mission)
     }
 
-    fun delete(url: String): Maybe<Any> {
-        return delete(Mission(url))
+    fun delete(url: String, deleteFile: Boolean = false): Maybe<Any> {
+        return delete(Mission(url), deleteFile)
     }
 
-    fun delete(mission: Mission): Maybe<Any> {
-        return downloadCore.delete(mission)
+    fun delete(mission: Mission, deleteFile: Boolean = false): Maybe<Any> {
+        return downloadCore.delete(mission, deleteFile)
+    }
+
+    fun clear(url: String): Maybe<Any> {
+        return clear(Mission(url))
+    }
+
+    fun clear(mission: Mission): Maybe<Any> {
+        return downloadCore.clear(mission)
     }
 
     fun getAllMission(): Maybe<List<Mission>> {
         return downloadCore.getAllMission()
     }
 
-    fun startALl(): Maybe<Any> {
+    fun createAll(missions: List<Mission>): Maybe<Any> {
+        return downloadCore.createAll(missions)
+    }
+
+    fun startAll(): Maybe<Any> {
         return downloadCore.startAll()
     }
 
     fun stopAll(): Maybe<Any> {
         return downloadCore.stopAll()
+    }
+
+    fun deleteAll(deleteFile: Boolean = false): Maybe<Any> {
+        return downloadCore.deleteAll(deleteFile)
+    }
+
+    fun clearAll(): Maybe<Any> {
+        return downloadCore.clearAll()
     }
 
     fun file(url: String): Maybe<File> {

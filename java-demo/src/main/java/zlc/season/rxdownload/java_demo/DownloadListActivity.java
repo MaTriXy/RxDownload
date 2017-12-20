@@ -31,6 +31,7 @@ import zlc.season.rxdownload3.core.Succeed;
 import zlc.season.rxdownload3.core.Suspend;
 import zlc.season.rxdownload3.core.Waiting;
 import zlc.season.rxdownload3.extension.ApkInstallExtension;
+import zlc.season.rxdownload3.extension.ApkOpenExtension;
 import zlc.season.rxdownload3.helper.UtilsKt;
 
 public class DownloadListActivity extends AppCompatActivity {
@@ -44,22 +45,56 @@ public class DownloadListActivity extends AppCompatActivity {
         adapter = new Adapter();
         mainBinding.recyclerView.setLayoutManager(new LinearLayoutManager(this));
         mainBinding.recyclerView.setAdapter(adapter);
+
+        mainBinding.startAll.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                RxDownload.INSTANCE.startAll().subscribe();
+            }
+        });
+
+        mainBinding.stopAll.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                RxDownload.INSTANCE.stopAll().subscribe();
+            }
+        });
+
+        mainBinding.deleteAll.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                RxDownload.INSTANCE.deleteAll(false)
+                        .subscribe(new Consumer<Object>() {
+                            @Override
+                            public void accept(Object o) throws Exception {
+                                loadData();
+                            }
+                        });
+            }
+        });
+
+        loadData();
+    }
+
+    private void loadData() {
+        RxDownload.INSTANCE.getAllMission()
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Consumer<List<Mission>>() {
+                    @Override
+                    public void accept(List<Mission> missions) throws Exception {
+                        adapter.addData(missions);
+                    }
+                });
     }
 
     static class Adapter extends RecyclerView.Adapter<ViewHolder> {
 
         private List<Mission> data = new ArrayList<>();
 
-        public Adapter() {
-            RxDownload.INSTANCE.getAllMission()
-                    .observeOn(AndroidSchedulers.mainThread())
-                    .subscribe(new Consumer<List<Mission>>() {
-                        @Override
-                        public void accept(List<Mission> missions) throws Exception {
-                            data.addAll(missions);
-                            notifyDataSetChanged();
-                        }
-                    });
+        public void addData(List<Mission> data) {
+            this.data.clear();
+            this.data.addAll(data);
+            notifyDataSetChanged();
         }
 
         @Override
@@ -193,7 +228,7 @@ public class DownloadListActivity extends AppCompatActivity {
         }
 
         private void open() {
-            //open app
+            RxDownload.INSTANCE.extension(customMission, ApkOpenExtension.class).subscribe();
         }
     }
 }

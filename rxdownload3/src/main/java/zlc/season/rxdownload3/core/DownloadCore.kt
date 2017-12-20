@@ -27,8 +27,16 @@ class DownloadCore {
         }
     }
 
+    fun isExists(mission: Mission): Maybe<Boolean> {
+        return missionBox.isExists(mission)
+    }
+
     fun create(mission: Mission): Flowable<Status> {
         return missionBox.create(mission)
+    }
+
+    fun createAll(missions: List<Mission>): Maybe<Any> {
+        return missionBox.createAll(missions)
     }
 
     fun startAll(): Maybe<Any> {
@@ -39,6 +47,10 @@ class DownloadCore {
         return missionBox.stopAll()
     }
 
+    fun deleteAll(deleteFile: Boolean): Maybe<Any> {
+        return missionBox.deleteAll(deleteFile)
+    }
+
     fun start(mission: Mission): Maybe<Any> {
         return missionBox.start(mission)
     }
@@ -47,8 +59,8 @@ class DownloadCore {
         return missionBox.stop(mission)
     }
 
-    fun delete(mission: Mission): Maybe<Any> {
-        return missionBox.delete(mission)
+    fun delete(mission: Mission, deleteFile: Boolean): Maybe<Any> {
+        return missionBox.delete(mission, deleteFile)
     }
 
     fun file(mission: Mission): Maybe<File> {
@@ -67,5 +79,17 @@ class DownloadCore {
         } else {
             Maybe.just(emptyList())
         }
+    }
+
+    fun clear(mission: Mission): Maybe<Any> {
+        return missionBox.clear(mission)
+    }
+
+    fun clearAll(): Maybe<Any> {
+        return missionBox.clearAll()
+    }
+
+    fun update(newMission: Mission): Maybe<Any> {
+        return missionBox.update(newMission)
     }
 }
