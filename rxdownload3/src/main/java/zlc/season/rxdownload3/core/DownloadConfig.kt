@@ -2,7 +2,6 @@ package zlc.season.rxdownload3.core
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.os.Build
 import android.os.Environment.DIRECTORY_DOWNLOADS
 import android.os.Environment.getExternalStoragePublicDirectory
 import zlc.season.rxdownload3.database.DbActor
@@ -17,11 +16,11 @@ import zlc.season.rxdownload3.notification.NotificationFactoryImpl
 object DownloadConfig {
     internal var DEBUG = false
 
-    internal val DOWNLOADING_FILE_SUFFIX = ".download"
-    internal val TMP_DIR_SUFFIX = ".TMP"
-    internal val TMP_FILE_SUFFIX = ".tmp"
+    internal const val DOWNLOADING_FILE_SUFFIX = ".download"
+    internal const val TMP_DIR_SUFFIX = ".TMP"
+    internal const val TMP_FILE_SUFFIX = ".tmp"
 
-    internal val RANGE_DOWNLOAD_SIZE: Long = 4 * 1024 * 1024  //4M
+    internal var rangeDownloadSize: Long = 4 * 1024 * 1024  //4M
 
     internal var maxMission = 3
     internal var maxRange = Runtime.getRuntime().availableProcessors() + 1
@@ -55,6 +54,7 @@ object DownloadConfig {
         this.fps = builder.fps
         this.maxMission = builder.maxMission
         this.maxRange = builder.maxRange
+        this.rangeDownloadSize = builder.rangeDownloadSize
         this.defaultSavePath = builder.defaultSavePath
 
         this.autoStart = builder.autoStart
@@ -85,6 +85,7 @@ object DownloadConfig {
     class Builder private constructor(val context: Context) {
         internal var maxMission = 3
         internal var maxRange = Runtime.getRuntime().availableProcessors() + 1
+        internal var rangeDownloadSize: Long = 4 * 1024 * 1024  //4M
 
         internal var debug = true
 
@@ -129,11 +130,17 @@ object DownloadConfig {
             return this
         }
 
+        fun setRangeDownloadSize(size: Long): Builder {
+            this.rangeDownloadSize = size
+            return this
+        }
+
         /**
          * Set fps. Default is 30.
          *
          * Note that this value is too large will cause the interface to stuck
          */
+        @Deprecated("This method already deprecated")
         fun setFps(fps: Int): Builder {
             this.fps = fps
             return this

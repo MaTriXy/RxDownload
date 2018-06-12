@@ -62,7 +62,7 @@ class NormalTargetFile(val mission: RealMission) {
 
         return Flowable.create<Status>({
             respBody.source().use { source ->
-                Okio.buffer(Okio.sink(realFile)).use { sink ->
+                Okio.buffer(Okio.sink(shadowFile)).use { sink ->
                     val buffer = sink.buffer()
                     var readLen = source.read(buffer, byteSize)
 
@@ -74,9 +74,11 @@ class NormalTargetFile(val mission: RealMission) {
                         readLen = source.read(buffer, byteSize)
                     }
 
-                    shadowFile.renameTo(realFile)
+                    if (!it.isCancelled) {
+                        shadowFile.renameTo(realFile)
 
-                    it.onComplete()
+                        it.onComplete()
+                    }
                 }
             }
         }, BUFFER).sample(period, MILLISECONDS, true)
