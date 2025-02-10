@@ -1,166 +1,235 @@
+![](usage.png)
+
 # RxDownload
 
 ![](https://img.shields.io/badge/language-kotlin-brightgreen.svg) ![](https://img.shields.io/badge/RxJava-2.0-blue.svg)
 
+[![](https://jitpack.io/v/ssseasonnn/RxDownload.svg)](https://jitpack.io/#ssseasonnn/RxDownload)
+
 基于RxJava打造的下载工具, 支持多线程下载和断点续传,使用Kotlin编写
 
-*Read this in other languages: [中文](README.ch.md), [English](README.md)* 
+*Read this in other languages: [中文](README.ch.md), [English](README.md), [Changelog](CHANGELOG.md)* 
 
-## 使用方式
+## Prepare
 
-### 准备
+- 添加jitpack仓库:
 
-1.添加Gradle依赖[ ![Download](https://api.bintray.com/packages/ssseasonnn/android/RxDownload3/images/download.svg) ](https://bintray.com/ssseasonnn/android/RxDownload3/_latestVersion)
+    ```gradle
+    maven { url 'https://jitpack.io' }
+    
+- 添加RxDownload依赖:
 
-```groovy
-dependencies{
-    compile 'zlc.season:rxdownload3:x.y.z'
-}
-```
+    ```gradle
+    //按需加载
+    implementation "com.github.ssseasonnn.RxDownload:rxdownload4:1.1.4"
+    implementation "com.github.ssseasonnn.RxDownload:rxdownload4-manager:1.1.4"
+    implementation "com.github.ssseasonnn.RxDownload:rxdownload4-notification:1.1.4"
+    implementation "com.github.ssseasonnn.RxDownload:rxdownload4-recorder:1.1.4"
+    
+    or: 
+    //添加RxDownload4的所有依赖
+    implementation "com.github.ssseasonnn:RxDownload:1.1.4"
+    ```
 
-2.配置权限
+## Basic Usage
 
-```xml
-<uses-permission android:name="android.permission.INTERNET"/>
-<uses-permission android:name="android.permission.MOUNT_UNMOUNT_FILESYSTEMS"/>
-<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
-```
+- 开始下载:
 
-> **注意: Android 6.0 以上还必须申请运行时权限, 如果遇到不能下载, 请先检查权限**
+    ```kotlin
+    disposable = url.download()
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribeBy(
+                    onNext = { progress ->
+                        //下载进度
+                        button.text = "${progress.downloadSizeStr()}/${progress.totalSizeStr()}"
+                        button.setProgress(progress)
+                    },
+                    onComplete = {
+                        //下载完成
+                        button.text = "打开"
+                    },
+                    onError = {
+                        //下载失败
+                        button.text = "重试"
+                    }
+            )    
+    ```
 
-### 下载
+- 停止下载:
 
-1.创建任务
+    ```kotlin
+    disposable.dispose()    
+    ```
 
-创建一个任务，并且接收下载的状态
+- 获取下载文件:
 
-```java
-val disposable = RxDownload.create(mission)
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { status ->
-                    setProgress(status)
-                    setActionText(status)
-                }
-```
+    ```kotlin
+    val file = url.file() 
+    // 或者
+    val file = task.file() 
+    // 使用文件...    
+    ```
+- 删除下载的文件:
 
-> 注意：下载状态的接收也是在这里进行，接收到的status会根据不同的下载状态自动更新。
-> 重复调用**不会**导致任务多次创建，因此可以在任何想要接收状态的地方调用该方法来接收下载的状态。
+    ```kotlin
+    url.delete()
+    // 或者
+    task.delete() 
+    ```
 
-2.开始下载
 
-```java
-RxDownload.start(mission).subscribe()
-```
+## Task Manager
 
-3.停止下载
+- 获取一个TaskManager对象:
 
-```java
-RxDownload.stop(mission).subscribe()
-```
+    ```kotlin
+    val taskManager = url.manager()
+    ```
+    
+- 订阅状态更新通知:
 
-> 只需三步, 就是这样简单!!
-
-**提示: 创建任务是一个异步操作, 因此如果需要创建成功后立即开始下载有以下方式：**
-
-- 在create()完成的回调中进行，如下
-
-```Java
-val disposable = RxDownload.create(mission)
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { status ->
-                    //开始下载
-                    RxDownload.start(mission).subscribe()
-                    setProgress(status)
-                    setActionText(status)
-                }
-```
-
-- 或者启用autoStart配置，当autoStart处于开启状态时，create任务完成以后就会自动start开始下载
-
-```java
-DownloadConfig.Builder.create(context)
-                  .enableAutoStart(true)
-                  ...
-                  
-                  
-DownloadConfig.init(builder)
-```
-
-更多API请移步RxDownload.kt
-
-### 配置
-
-在APP启动时添加您的配置,就像这样:
-
-```java
-class BaseApplication : Application() {
-
-    override fun onCreate() {
-        super.onCreate()
-
-        val builder = DownloadConfig.Builder.create(this)
-                .enableDb(true)
-                .enableNotification(true)
-				...
-
-        DownloadConfig.init(builder)
+    ```kotlin
+    //keep this tag for dispose
+    val tag = taskManager.subscribe { status ->
+        // 获取下载状态
+        when (status) {
+            is Normal -> {}
+            is Started -> {}
+            is Downloading -> {}
+            is Paused -> {}
+            is Completed -> {}
+            is Failed -> {}
+            is Deleted -> {}
+        }
     }
-}
-```
+        
+    ``` 
+    
+    > **progress**可从**status**中获取, 当status为**Failed**时, 能额外从中获取**throwable**,代表失败的原因
+    
+- 取消状态更新订阅:
 
-拥有丰富的配置选项满足您的需求:
+    ```kotlin
+    //dispose tag
+    taskManager.dispose(tag)
+    ```
+    
+- 开始下载:
 
-```java
-DownloadConfig.Builder.create(this)
-                .setFps(20)                         //设置更新频率
-                .enableAutoStart(true)              //自动开始下载
-                .setDefaultPath("custom download path")     //设置默认的下载地址
-                .enableDb(true)                             //启用数据库
-                .setDbActor(CustomSqliteActor(this))        //自定义数据库
-                .enableService(true)                        //启用Service
-                .enableNotification(true)                   //启用Notification
-                .setNotificationFactory(NotificationFactoryImpl()) 	    //自定义通知
-                .setOkHttpClientFacotry(OkHttpClientFactoryImpl()) 	    //自定义OKHTTP
-                .addExtension(ApkInstallExtension::class.java)          //添加扩展
-```
+    ```kotlin
+    taskManager.start()
+    ```
 
-### 扩展
+- 停止下载:
 
-定制您的专属操作
+    ```kotlin
+    taskManager.stop()
+    ```
+    
+- 删除下载:
 
-```java
-class CustomExtension:Extension {
-    override fun init(mission: RealMission) {
-        //Init
-    }
+    ```kotlin
+    taskManager.delete()
+    ```
 
-    override fun action(): Maybe<Any> {
-        //Your action
-    }
-}
-```
+- 获取下载文件:
 
-> 可参考ApkInstallExtension代码
+    ```kotlin
+    val file = taskManager.file()
+    // 使用文件...  
+    ```
 
-### 混淆
+## Task Recorder
 
-无特殊混淆, 只需添加Retrofit及OKHTTP的混淆即可
+- 查询单个任务:
 
-```groovy
--dontnote retrofit2.Platform
--dontwarn retrofit2.Platform$Java8
--keepattributes Signature
--keepattributes Exceptions
+    ```kotlin
+     // Query task with url
+     RxDownloadRecorder.getTask("url")
+           .observeOn(AndroidSchedulers.mainThread())
+           .subscribeBy { TaskEntity ->
+               // TaskEntity                        
+           } 
+    ``` 
+    
+- 查询一批任务:
 
--dontwarn okhttp3.**
--dontwarn okio.**
--dontwarn javax.annotation.**
-```
+    ```kotlin
+     // Query task with urls
+     RxDownloadRecorder.getTaskList("url1","url2","url3")
+           .observeOn(AndroidSchedulers.mainThread())
+           .subscribeBy { list ->
+               // list of TaskEntity                        
+           } 
+    ```    
+    
+- 获取所有下载记录列表:
 
-### License
+    ```kotlin
+     RxDownloadRecorder.getAllTask()
+           .observeOn(AndroidSchedulers.mainThread())
+           .subscribeBy { list ->
+               //list of TaskEntity                        
+           }
+    ```
+    
+- 查询某个状态的所有下载记录:
+
+    ```kotlin
+     // 查询所有下载完成的记录
+     RxDownloadRecorder.getAllTaskWithStatus(Completed())
+           .observeOn(AndroidSchedulers.mainThread())
+           .subscribeBy { list ->
+               //list of TaskEntity                        
+           } 
+    ``` 
+    
+- 分页查询下载记录列表:
+
+    ```kotlin
+     RxDownloadRecorder.getTaskList(page, pageSize)
+           .observeOn(AndroidSchedulers.mainThread())
+           .subscribeBy { list ->
+               //list of TaskEntity                        
+           }
+    ```
+    
+- 分页查询某个状态下的下载记录列表:
+
+    ```kotlin
+     // 获取下载完成的分页列表
+     RxDownloadRecorder.getTaskListWithStatus(Completed(), page, pageSize)
+           .observeOn(AndroidSchedulers.mainThread())
+           .subscribeBy { list ->
+               //list of TaskEntity                        
+           }
+    ```
+
+    > **TaskEntity** 拥有一个**abnormalExit**字段, 该字段用来表示该Task是否是被APP强制杀进程导致的暂停
+
+
+- 全部开始:
+
+    ```kotlin
+     RxDownloadRecorder.startAll()
+    ```
+    
+- 全部暂停:
+
+    ```kotlin
+     RxDownloadRecorder.stopAll()
+    ```
+    
+- 全部删除:
+
+    ```kotlin
+     RxDownloadRecorder.deleteAll()
+    ```
+
+## License
 
 > ```
-> Copyright 2017 Season.Zlc
+> Copyright 2019 Season.Zlc
 >
 > Licensed under the Apache License, Version 2.0 (the "License");
 > you may not use this file except in compliance with the License.

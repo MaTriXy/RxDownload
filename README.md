@@ -1,165 +1,236 @@
+![](usage.png)
+
 # RxDownload
 
 ![](https://img.shields.io/badge/language-kotlin-brightgreen.svg) ![](https://img.shields.io/badge/RxJava-2.0-blue.svg)
 
+[![](https://jitpack.io/v/ssseasonnn/RxDownload.svg)](https://jitpack.io/#ssseasonnn/RxDownload)
+
 A multi-threaded download tool written with RxJava and Kotlin
 
-*Read this in other languages: [中文](README.ch.md), [English](README.md)* 
+*Read this in other languages: [中文](README.ch.md), [English](README.md), [Changelog](CHANGELOG.md)* 
 
-## How to Use
+## Prepare
 
-### Preparation
+- Add jitpack repo:
 
-1.Add Gradle dependencies[ ![Download](https://api.bintray.com/packages/ssseasonnn/android/RxDownload3/images/download.svg) ](https://bintray.com/ssseasonnn/android/RxDownload3/_latestVersion)
+    ```gradle
+    maven { url 'https://jitpack.io' }
+    
+- Add RxDownload dependency:
 
-```groovy
-dependencies{
-    compile 'zlc.season:rxdownload3:x.y.z'
-}
-```
+    ```gradle
+    //Load on demand
+    implementation "com.github.ssseasonnn.RxDownload:rxdownload4:1.1.4"
+    implementation "com.github.ssseasonnn.RxDownload:rxdownload4-manager:1.1.4"
+    implementation "com.github.ssseasonnn.RxDownload:rxdownload4-notification:1.1.4"
+    implementation "com.github.ssseasonnn.RxDownload:rxdownload4-recorder:1.1.4"
+    
+    or: 
+    //Add all dependencies of RxDownload4
+    implementation "com.github.ssseasonnn:RxDownload:1.1.4"
+    ```
 
-2.Configure the permissions
+## Basic Usage
 
-```xml
-<uses-permission android:name="android.permission.INTERNET"/>
-<uses-permission android:name="android.permission.MOUNT_UNMOUNT_FILESYSTEMS"/>
-<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
-```
+- Start download:
 
-> **Please note that Android 6.0 and above must also apply run-time permissions, if you are unable to download, check permissions**
+    ```kotlin
+    disposable = url.download()
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribeBy(
+                    onNext = { progress ->
+                        //download progress
+                        button.text = "${progress.downloadSizeStr()}/${progress.totalSizeStr()}"
+                        button.setProgress(progress)
+                    },
+                    onComplete = {
+                        //download complete
+                        button.text = "Open"
+                    },
+                    onError = {
+                        //download failed
+                        button.text = "Retry"
+                    }
+            )    
+    ```
 
-### Download
+- Stop download:
 
-1.Create a mission
+    ```kotlin
+    disposable.dispose()    
+    ```
+    
+- Get download file:
 
-Create a mission and receive the status of the download
+    ```kotlin
+    val file = url.file()
+    // or
+    val file = task.file() 
+    // use file...   
+    ```
+    
+- Delete download files:
 
-```java
-val disposable = RxDownload.create(mission)
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { status ->
-                    setProgress(status)
-                    setActionText(status)
-                }
-```
+    ```kotlin
+    url.delete()
+    // or
+    task.delete() 
+    ```
 
-> Note: The download status is also received here, the received status will be automatically updated according to the different download status.
-> Repeated calls **DO NOT** cause the task to be created more than once, so you can call this method wherever you want to receive the state to receive the downloaded state.
+## Task Manager
 
-2.Start download
+- Get a TaskManager object:
 
-```java
-RxDownload.start(mission).subscribe()
-```
+    ```kotlin
+    val taskManager = url.manager()
+    ```
+    
+- Subscribe to status update:
 
-3.Stop download
-
-```java
-RxDownload.stop(mission).subscribe()
-```
-
-> Just three steps that is so simple !!
-
-**Tip: Creating a mission is an asynchronous operation, so if you need to start the mission immediately after it is created, you have the following options:**
-
-- In the create () completed callback, as follows
-
-```Java
-val disposable = RxDownload.create(mission)
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { status ->
-                    //call start()
-                    RxDownload.start(mission).subscribe()
-                    setProgress(status)
-                    setActionText(status)
-                }
-```
-
-- Or enable autoStart configuration, when autoStart is turned on, the mission will automatically start after created
-
-```java
-DownloadConfig.Builder.create(context)
-                  .enableAutoStart(true)
-                  ...
-                  
-                  
-DownloadConfig.init(builder)
-```
-
-For more APIs please move RxDownload.kt
-
-### Configuration
-
-Add your configuration when APP starts up, like this:
-
-```java
-class BaseApplication : Application() {
-
-    override fun onCreate() {
-        super.onCreate()
-
-        val builder = DownloadConfig.Builder.create(this)
-                .enableDb(true)
-                .enableNotification(true)
-				...
-
-        DownloadConfig.init(builder)
+    ```kotlin
+   //keep this tag for dispose
+   val tag = taskManager.subscribe { status ->
+        // Receive download status
+        when (status) {
+            is Normal -> {}
+            is Started -> {}
+            is Downloading -> {}
+            is Paused -> {}
+            is Completed -> {}
+            is Failed -> {}
+            is Deleted -> {}
+        }
     }
-}
-```
+        
+    ``` 
+    
+    > **progress** can be obtained from **status**, when status is **Failed**, 
+    you can get **throwable** from it, which is the reason for the failure.
+    
+- Cancel status update subscription:
 
-Have a wealth of configuration options to meet your needs:
+    ```kotlin
+    //dispose tag
+    taskManager.dispose(tag)
+    ```
+    
+- Start download:
 
-```java
-DownloadConfig.Builder.create(this)
-                .setFps(20)     //Set the update frequency
-                .setDefaultPath("custom download path")     //Set the default download address
-                .enableDb(true)     //Enable the database
-                .setDbActor(CustomSqliteActor(this))    //Customize the database
-                .enableService(true)    //Enable Service
-                .enableNotification(true)   //Enable Notification
-                .setNotificationFactory(NotificationFactoryImpl())      //Custom notification
-                .setOkHttpClientFacotry(OkHttpClientFactoryImpl())      //Custom OKHTTP
-                .addExtension(ApkInstallExtension::class.java)    //Add extension
-```
+    ```kotlin
+    taskManager.start()
+    ```
 
-### Extension
+- Stop download:
 
-Customize your exclusive operation
+    ```kotlin
+    taskManager.stop()
+    ```
+    
+- Delete download:
 
-```java
-class CustomExtension:Extension {
-    override fun init(mission: RealMission) {
-        //Init
-    }
+    ```kotlin
+    taskManager.delete()
+    ```
 
-    override fun action(): Maybe<Any> {
-        //Your action
-    }
-}
-```
+- Get download file:
 
-> Refer to the ApkInstallExtension code
+    ```kotlin
+    val file = taskManager.file() 
+    // use file...   
+    ```
+    
+## Task Recorder
 
-### Proguard
+- Query single task:
 
-No special proguard, just add Retrofit and OKHTTP can be proguard
+    ```kotlin
+     // Query task with url
+     RxDownloadRecorder.getTask("url")
+           .observeOn(AndroidSchedulers.mainThread())
+           .subscribeBy { TaskEntity ->
+               // TaskEntity                        
+           } 
+    ``` 
+    
+- Query a batch of tasks:
 
-```groovy
--dontnote retrofit2.Platform
--dontwarn retrofit2.Platform$Java8
--keepattributes Signature
--keepattributes Exceptions
+    ```kotlin
+     // Query task with urls
+     RxDownloadRecorder.getTaskList("url1","url2","url3")
+           .observeOn(AndroidSchedulers.mainThread())
+           .subscribeBy { list ->
+               // list of TaskEntity                        
+           } 
+    ```    
+    
+- Get a list of all downloads:
 
--dontwarn okhttp3.**
--dontwarn okio.**
--dontwarn javax.annotation.**
-```
+    ```kotlin
+     RxDownloadRecorder.getAllTask()
+           .observeOn(AndroidSchedulers.mainThread())
+           .subscribeBy { list ->
+               //list of TaskEntity                        
+           }
+    ```
+    
+- Query all download records for a state:
 
-### License
+    ```kotlin
+     // Query all Completed records
+     RxDownloadRecorder.getAllTaskWithStatus(Completed())
+           .observeOn(AndroidSchedulers.mainThread())
+           .subscribeBy { list ->
+               //list of TaskEntity                        
+           } 
+    ``` 
+    
+- Paging query download record list:
+
+    ```kotlin
+     RxDownloadRecorder.getTaskList(page, pageSize)
+           .observeOn(AndroidSchedulers.mainThread())
+           .subscribeBy { list ->
+               //list of TaskEntity                        
+           }
+    ```
+    
+- Paging query list of download records in a certain state:
+
+    ```kotlin
+     // Get the list of pages that have been Completed
+     RxDownloadRecorder.getTaskListWithStatus(Completed(), page, pageSize)
+           .observeOn(AndroidSchedulers.mainThread())
+           .subscribeBy { list ->
+               //list of TaskEntity                        
+           }
+    ```
+
+    > **TaskEntity** has a **abnormalExit** field, 
+    which is used to indicate whether the Task has paused by the APP forced close.
+
+- Start All:
+
+    ```kotlin
+     RxDownloadRecorder.startAll()
+    ```
+    
+- Stop All:
+
+    ```kotlin
+     RxDownloadRecorder.stopAll()
+    ```
+    
+- Delete All:
+
+    ```kotlin
+     RxDownloadRecorder.deleteAll()
+    ```
+
+## License
 
 > ```
-> Copyright 2017 Season.Zlc
+> Copyright 2019 Season.Zlc
 >
 > Licensed under the Apache License, Version 2.0 (the "License");
 > you may not use this file except in compliance with the License.
